@@ -2,6 +2,7 @@
 <html>
 <head>
     <title>People Records</title>
+    
     <style>
         table {
             width: 100%;
@@ -66,6 +67,7 @@
 </head>
 <body>
     <h1>books</h1>
+    <a href="{% url 'home' %}" class="btn-secondary">Αρχική</a>
     <a href="{% url 'incomplete_records' %}" class="btn btn-edit" style="margin-top: 20px;">
         View Incomplete Records
     </a>
@@ -82,18 +84,62 @@
         {% endfor %}
     {% endif %}
 
-    <!-- Search form -->
-    <form method="get" class="search-form" id="searchForm">
-        <input type="text" 
-                id="searchInput" 
-                name="search"
-                placeholder="Search books"
-                value="{{ search|default:'' }}"
-                autocomplete="off">
+    <span id="loadingIndicator" class="loading">Φόρτωση...</span>
+
+   <div class="search-section" style="margin: 20px 0; padding: 20px; background: #f9f9f9; border-radius: 8px;">
+    <form method="get" id="searchForm" style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
         
-        <button type="submit">Search</button>
-        <span class="loading" id="loadingIndicator">Αναζήτηση...</span>
+        <!-- Search Category Dropdown -->
+        <select name="search_category" id="searchCategory" style="padding: 10px; border-radius: 5px; border: 1px solid #ddd;">
+            <option value="all" {% if search_category == 'all' %}selected{% endif %}> Όλα τα πεδία</option>
+            <option value="ari8mos" {% if search_category == 'ari8mos' %}selected{% endif %}> Αριθμός Εισαγωγής</option>
+            <option value="hmeromhnia_eis" {% if search_category == 'hmeromhnia_eis' %}selected{% endif %}>Ημερομηνία Εισαγωγής</option>
+            <option value="syggrafeas" {% if search_category == 'syggrafeas' %}selected{% endif %}> Συγγραφέας</option>
+            <option value="titlos" {% if search_category == 'titlos' %}selected{% endif %}> Τίτλος</option>
+            <option value="ekdoths" {% if search_category == 'ekdoths' %}selected{% endif %}> Εκδότης</option>
+            <option value="ISBN" {% if search_category == 'ISBN' %}selected{% endif %}> ISBN</option>
+        </select>
+        
+        <!-- Search Input -->
+        <input 
+            type="text" 
+            name="search" 
+            value="{{ search }}" 
+            placeholder="Αναζήτηση..." 
+            id="searchInput"
+            style="padding: 10px; border-radius: 5px; border: 1px solid #ddd; min-width: 300px; flex: 1;"
+        >
+        
+        <!-- Search Button -->
+        <button type="submit" style="padding: 10px 20px; background-color: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">
+             Αναζήτηση
+        </button>
+
+        <!-- Clear Button -->
+        {% if search %}
+        <a href="{% url 'show_people' %}" style="padding: 10px 20px; background-color: #f44336; color: white; border: none; border-radius: 5px; text-decoration: none; display: inline-block;">
+            ❌ Καθαρισμός
+        </a>
+        {% endif %}
     </form>
+    
+    <!-- Search Info -->
+    {% if search %}
+    <div style="margin-top: 10px; padding: 10px; background: #e3f2fd; border-left: 4px solid #2196F3; border-radius: 4px;">
+        <strong>Αναζήτηση:</strong> "{{ search }}" 
+        <strong>σε:</strong> 
+        {% if search_category == 'all' %}Όλα τα πεδία
+        {% elif search_category == 'ari8mos' %}Αριθμός Εισαγωγής
+        {% elif search_category == 'hmeromhnia_eis' %}Ημερομηνία Εισαγωγής
+        {% elif search_category == 'titlos' %}Τίτλος
+        {% elif search_category == 'syggrafeas' %}Συγγραφέας
+        {% elif search_category == 'ekdoths' %}Εκδότης
+        {% elif search_category == 'ISBN' %}ISBN
+        {% endif %}
+        | <strong>Αποτελέσματα:</strong> {{ page_obj.paginator.count }}
+    </div>
+    {% endif %}
+</div>
 
     <form method="get" action="{% url 'print_range' %}" target="_blank" style="display: inline;">
     <input type="text" placeholder="από" name="from_num" id="print_from_num">
@@ -163,100 +209,132 @@
         {% csrf_token %}
     </form>
 
-    <script>
-        let searchTimeout;
-        const searchInput = document.getElementById('searchInput');
-        const tableBody = document.getElementById('tableBody');
-        const loadingIndicator = document.getElementById('loadingIndicator');
-        const pagination = document.getElementById('pagination');
-        const paginationBottom = document.getElementById('paginationBottom');
-        const searchForm = document.getElementById('searchForm');
+<script>
+    let searchTimeout;
+    const searchInput = document.getElementById('searchInput');
+    const searchCategory = document.getElementById('searchCategory');
+    const tableBody = document.getElementById('tableBody');
+    const loadingIndicator = document.getElementById('loadingIndicator');
+    const pagination = document.getElementById('pagination');
+    const paginationBottom = document.getElementById('paginationBottom');
+    const searchForm = document.getElementById('searchForm');
 
-        // Real-time search on input
-        searchInput.addEventListener('input', function() {
-            clearTimeout(searchTimeout);
+    // Update placeholder when category changes
+    document.getElementById('searchCategory').addEventListener('change', function() {
+        const input = document.getElementById('searchInput');
+        const category = this.value;
+        
+        const placeholders = {
+            'all': 'Αναζήτηση σε όλα τα πεδία...',
+            'ari8mos': 'Εισάγετε αριθμό εισαγωγής...',
+            'titlos': 'Αναζήτηση τίτλου...',
+            'syggrafeas': 'Αναζήτηση συγγραφέα...',
+            'koha': 'Αναζήτηση KOHA...',
+            'hmeromhnia_eis': 'Αναζήτηση ημερομηνίας εισαγωγής...',
+            'ekdoths': 'Αναζήτηση εκδότη...',
+            'ISBN': 'Αναζήτηση ISBN...'
+        };
+        
+        input.placeholder = placeholders[category] || 'Αναζήτηση...';
+        input.focus();
+    });
+
+    // Real-time search on input
+    searchInput.addEventListener('input', function() {
+        clearTimeout(searchTimeout);
+        if (loadingIndicator) {
             loadingIndicator.style.display = 'inline';
-            
-            // Debounce: wait 300ms after user stops typing
-            searchTimeout = setTimeout(function() {
-                performSearch();
-            }, 300);
-        });
-
-        // Intercept form submission to use AJAX
-        searchForm.addEventListener('submit', function(e) {
-            e.preventDefault();
+        }
+        
+        // Debounce: wait 300ms after user stops typing
+        searchTimeout = setTimeout(function() {
             performSearch();
+        }, 300);
+    });
+
+    // Intercept form submission to use AJAX
+    searchForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        performSearch();
+    });
+
+    function performSearch(page = 1) {
+        const searchValue = searchInput.value;
+        const categoryValue = searchCategory.value;
+        
+        // Build URL with parameters
+        const url = new URL(window.location.origin + '{% url "show_people" %}');
+        
+        if (searchValue) {
+            url.searchParams.set('search', searchValue);
+        }
+        
+        // ✅ IMPORTANT: Include search_category parameter
+        url.searchParams.set('search_category', categoryValue);
+        url.searchParams.set('page', page);
+
+        // Update browser URL without reloading
+        window.history.pushState({}, '', url);
+
+        // Fetch results via AJAX
+        fetch(url, {
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Update table body
+            tableBody.innerHTML = data.html;
+            
+            // Update both pagination sections
+            updatePagination(data, searchValue);
+            
+            // Hide loading indicator
+            if (loadingIndicator) {
+                loadingIndicator.style.display = 'none';
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            if (loadingIndicator) {
+                loadingIndicator.style.display = 'none';
+            }
         });
+    }
 
-        function performSearch(page = 1) {
-            const searchValue = searchInput.value;
-            
-            // Build URL with parameters
-            const url = new URL(window.location.origin + '/people/');
-            if (searchValue) {
-                url.searchParams.set('search', searchValue);
-            }
-            url.searchParams.set('page', page);
+    function loadPage(pageNum) {
+        performSearch(pageNum);
+    }
 
-            // Update browser URL without reloading
-            window.history.pushState({}, '', url);
-
-            // Fetch results via AJAX
-            fetch(url, {
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                // Update table body
-                tableBody.innerHTML = data.html;
-                
-                // Update both pagination sections
-                updatePagination(data, searchValue);
-                
-                // Hide loading indicator
-                loadingIndicator.style.display = 'none';
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                loadingIndicator.style.display = 'none';
-            });
+    function updatePagination(data, search) {
+        let paginationHTML = '';
+        
+        if (data.has_previous) {
+            paginationHTML += `<a href="#" onclick="loadPage(1); return false;">« πρώτο</a> `;
+            paginationHTML += `<a href="#" onclick="loadPage(${data.current_page - 1}); return false;">προηγούμενο</a> `;
         }
-
-        function loadPage(pageNum) {
-            performSearch(pageNum);
+        
+        paginationHTML += `<span>Σελίδα ${data.current_page} από ${data.total_pages}</span> `;
+        
+        if (data.has_next) {
+            paginationHTML += `<a href="#" onclick="loadPage(${data.current_page + 1}); return false;">επόμενο</a> `;
+            paginationHTML += `<a href="#" onclick="loadPage(${data.total_pages}); return false;">τελευταίο »</a>`;
         }
+        
+        // Update both pagination divs
+        pagination.innerHTML = paginationHTML;
+        paginationBottom.innerHTML = paginationHTML;
+    }
 
-        function updatePagination(data, search) {
-            let paginationHTML = '';
-            
-            if (data.has_previous) {
-                paginationHTML += `<a href="#" onclick="loadPage(1); return false;">« πρώτο</a> `;
-                paginationHTML += `<a href="#" onclick="loadPage(${data.current_page - 1}); return false;">προηγούμενο</a> `;
-            }
-            
-            paginationHTML += `<span>Σελίδα ${data.current_page} από ${data.total_pages}</span> `;
-            
-            if (data.has_next) {
-                paginationHTML += `<a href="#" onclick="loadPage(${data.current_page + 1}); return false;">επόμενο</a> `;
-                paginationHTML += `<a href="#" onclick="loadPage(${data.total_pages}); return false;">τελευταίο »</a>`;
-            }
-            
-            // Update both pagination divs
-            pagination.innerHTML = paginationHTML;
-            paginationBottom.innerHTML = paginationHTML;
+    function confirmDelete(ari8mos, title) {
+        if (confirm(`Are you sure you want to delete record #${ari8mos}?\n\nTitle: ${title}\n\nThis action cannot be undone!`)) {
+            const form = document.getElementById('deleteForm');
+            form.action = `/people/delete/${ari8mos}/`;
+            form.submit();
         }
-
-        function confirmDelete(ari8mos, title) {
-            if (confirm(`Are you sure you want to delete record #${ari8mos}?\n\nTitle: ${title}\n\nThis action cannot be undone!`)) {
-                const form = document.getElementById('deleteForm');
-                form.action = `/people/delete/${ari8mos}/`;
-                form.submit();
-            }
-        }
-    </script>
+    }
+</script>
 
 <script>
 function setPrintRange() {
