@@ -75,6 +75,8 @@ Project 1/
 
 ## 🌐 To run the web application locally, follow these steps: 🛠️💻
 
+After adding the following settings to your code: SECRET_KEY, DEBUG = True, NAME, USER, and PASSWORD 🔑💻, you can follow these steps to get everything running smoothly:
+
 ### 1️⃣ Open the command prompt and navigate to your project folder
 
 Run **CMD** as *Admin*:
